@@ -1,45 +1,73 @@
 #include <iostream>
-#include <fstream>
+
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/wait.h>
+#include <stdlib.h>
+
+#include <string.h>
 #include <string>
 
-inline bool exists (const std::string& name) {
-    std::ifstream f(name.c_str());
-    return f.good();
+void do_copy(int source, int target){
+    char buffer[1024];
+    ssize_t bytes;
+    while((bytes = read(source, buffer, 1024)) != 0)
+    {
+        lseek(target, 0, SEEK_END);
+        write(target, buffer, bytes);
+    }
+
+    close(source);
+    close(target);
+    std::cout << "Copied successfully";
 }
 
-void do_copy(std::string str_source, std::string str_target){
-    std::string line;
-    std::ifstream source{str_source};
-    std::ofstream target{str_target};
-
-    while(getline(source, line)){
-        target << line << "\n";
-    }
-}
-
-int main(int argc, char *argv[]){
-    if(argc != 3){
-        perror("argument count");
-        return 0;
-    }
-    if(!exists(argv[1])){
-        perror("");
-        return 0;
+int main(int argc, char** argv)
+{
+    if(argc < 2){
+        perror("arguments count error!");
+        return 1;
     }
 
-    std::string flag = "yes";
-    
-    if(exists(argv[2])){
-        std::cout << "Would you like to override the target file?: ";
-        std::cin >> flag;
-    }
-    if(flag == "yes"){
+    int source = open(argv[1], O_RDONLY, 0666);
 
-        do_copy(argv[1], argv[2]);
+    if(source < 0){
+        perror("Openning the file failed");
+        return 1;
+    }
+
+    int target{};
+
+    if(argc > 2){
+        printf("%s", "Would you like to override the file? \n");
+
+        std::string temp;
+        std::cin >> temp;
+
+        while(temp != "Yes" || temp != "No"){
+            if(temp == "No"){
+                target = open(argv[2], O_WRONLY | O_CREAT | O_TRUNC, 0666);
+            }
+            else if(temp == "Yes"){
+                target = open(argv[2], O_WRONLY, 0666);
+            }
+            else{
+                std::cout << "not normal answer, try again: ";
+                std::cin >> temp;
+            }
+        }
     }
     else{
-        std::cout << "You did not want to override the file" << "\n";
+        const char* filename = "Target";
+        target = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
     }
 
+    if(target < 0){
+        perror("Can't open the file");
+        return 1;
+    }
+
+    do_copy(source, target);
     return 0;
 }
